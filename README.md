@@ -104,3 +104,7 @@ The short-window build (`contract_testnet_deploy.py`) was run live on GenLayer S
 ## License
 
 MIT
+
+## CI
+
+The offline test suite runs on every push; see the Actions tab.

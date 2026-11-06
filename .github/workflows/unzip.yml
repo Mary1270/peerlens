@@ -1,0 +1,40 @@
+name: Unzip upload
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*.zip"
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Extract the zip into the repository root
+        run: |
+          set -e
+          ZIP=$(ls *.zip 2>/dev/null | head -n1 || true)
+          if [ -z "$ZIP" ]; then echo "no zip found"; exit 0; fi
+          rm -rf /tmp/x && mkdir /tmp/x
+          unzip -q "$ZIP" -d /tmp/x
+          COUNT=$(ls -A /tmp/x | wc -l)
+          SRC=/tmp/x
+          if [ "$COUNT" = "1" ] && [ -d "/tmp/x/$(ls -A /tmp/x)" ]; then SRC="/tmp/x/$(ls -A /tmp/x)"; fi
+          rm -rf "$SRC/.github"
+          cp -a "$SRC"/. .
+          rm -f "$ZIP"
+
+      - name: Commit the extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "nothing to commit" && exit 0
+          git commit -m "Add project files from zip"
+          git push

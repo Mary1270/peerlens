@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PeerLens - paid code reviews, settled on GitHub evidence</title>
+<meta name="theme-color" content="#4F46E5">
+<style>
+  :root{
+    --paper:#FFFFFF; --bg:#F5F5FB; --ink:#14142B; --ink-dim:#4A4A6A; --ink-faint:#8585A5;
+    --line:#E0E0F0; --teal:#4F46E5; --teal-deep:#3730A3; --teal-soft:#E8E9FD;
+    --green:#1F9D5B; --green-soft:#E3F6EC; --red:#C8453A; --red-soft:#FCEAE8;
+    --amber:#B7791F; --amber-soft:#FBF1DC; --radius:14px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#17172B; --bg:#0E0E1C; --ink:#EAEAF8; --ink-dim:#B0B0D0; --ink-faint:#8888AA;
+      --line:#2C2C50; --teal:#8B8CFF; --teal-deep:#B4B5FF; --teal-soft:#23244F;
+      --green:#4CC98A; --green-soft:#143626; --red:#F08075; --red-soft:#3C1E1B;
+      --amber:#E2B15A; --amber-soft:#3A2D12;
+    }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.5;
+       padding-bottom:calc(76px + env(safe-area-inset-bottom));min-height:100vh}
+  a{color:var(--teal-deep)}
+  code,.mono{font-family:var(--mono);font-size:.88em}
+  h1,h2,h3{margin:0;line-height:1.2;letter-spacing:-.01em}
+  h1{font-size:clamp(26px,6vw,40px)} h2{font-size:22px} h3{font-size:16px}
+  p{margin:0 0 10px}
+  .wrap{max-width:780px;margin:0 auto;padding:0 16px}
+
+  header.top{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line)}
+  header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:10px;height:58px}
+  .brand{font-weight:800;font-size:19px;letter-spacing:-.02em;text-decoration:none;color:var(--ink)}
+  .brand span{color:var(--teal)}
+  .status-pill{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--paper);
+               border-radius:999px;padding:7px 12px;font-size:13px;color:var(--ink-dim);cursor:pointer;max-width:60vw}
+  .status-pill .label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .status-pill.connected{background:var(--green-soft);border-color:var(--green);color:var(--green);font-weight:700}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-faint);flex:none}
+  .dot.on{background:var(--green)}
+
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--paper);border-top:1px solid var(--line);
+           padding-bottom:env(safe-area-inset-bottom)}
+  nav.tabs .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px 8px}
+  .tab-link{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:12px;
+            text-decoration:none;color:var(--ink-faint);font-size:12px;font-weight:600}
+  .tab-link svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .tab-link.active{color:var(--teal-deep);background:var(--teal-soft)}
+
+  .route{display:none;padding:22px 0 30px}
+  .route.active{display:block}
+
+  .hero{padding:6px 0 18px}
+  .hero p{color:var(--ink-dim);max-width:600px;margin-top:10px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0 6px}
+  .stat{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .stat b{display:block;font-size:22px} .stat span{font-size:12px;color:var(--ink-faint)}
+
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .card.link{display:block;text-decoration:none;color:inherit}
+  .card.link:active{background:var(--teal-soft)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .muted{color:var(--ink-dim)} .faint{color:var(--ink-faint);font-size:13px}
+  .terms{margin:8px 0;word-break:break-word}
+
+  .pill{display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap}
+  .pill.open{background:var(--teal-soft);color:var(--teal-deep)}
+  .pill.good{background:var(--green-soft);color:var(--green)}
+  .pill.bad{background:var(--red-soft);color:var(--red)}
+  .pill.warn{background:var(--amber-soft);color:var(--amber)}
+  .pill.neutral{background:var(--line);color:var(--ink-dim)}
+
+  label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}
+  .hint{font-size:12.5px;color:var(--ink-faint);margin:6px 0 0}
+  input,textarea,select{width:100%;font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);
+                        border-radius:10px;padding:12px;outline:none}
+  input:focus,textarea:focus,select:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-soft)}
+  textarea{min-height:84px;resize:vertical}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:520px){.grid2{grid-template-columns:1fr}}
+
+  button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:13px 16px;cursor:pointer;
+         background:var(--teal);color:#fff;width:100%;margin-top:14px}
+  button:active{background:var(--teal-deep)}
+  button.secondary{background:var(--teal-soft);color:var(--teal-deep)}
+  button.ghost{background:transparent;color:var(--teal-deep);border:1px solid var(--line)}
+  button.danger{background:var(--red-soft);color:var(--red)}
+  button:disabled{opacity:.5;cursor:default}
+  .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .btnrow button{margin-top:14px}
+
+  .out{display:none;margin-top:12px;border-radius:10px;padding:12px;font-family:var(--mono);font-size:12.5px;
+       white-space:pre-wrap;word-break:break-word;background:var(--line);color:var(--ink-dim)}
+  .out.ok{background:var(--green-soft);color:var(--green)} .out.err{background:var(--red-soft);color:var(--red)}
+
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:6px 12px;font-size:14px}
+  .kv dt{color:var(--ink-faint)} .kv dd{margin:0;word-break:break-word}
+  .verdict{border-radius:var(--radius);padding:18px;margin-bottom:12px}
+  .verdict.good{background:var(--green-soft)} .verdict.bad{background:var(--red-soft)}
+  .verdict.warn{background:var(--amber-soft)} .verdict.neutral{background:var(--line)}
+  .verdict .big{font-size:21px;font-weight:800;letter-spacing:-.01em}
+  .steps{display:flex;gap:6px;margin:4px 0 14px;flex-wrap:wrap}
+  .step{font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 10px;background:var(--line);color:var(--ink-faint)}
+  .step.done{background:var(--green-soft);color:var(--green)} .step.now{background:var(--teal);color:#fff}
+  .checks{display:grid;gap:6px;margin-top:10px}
+  .chk{display:flex;gap:8px;align-items:center;font-size:13.5px}
+  .chk i{font-style:normal;font-weight:800;width:18px;text-align:center}
+  .chk.ok i{color:var(--green)} .chk.no i{color:var(--red)} .chk.na i{color:var(--ink-faint)}
+  .back{display:inline-block;margin-bottom:12px;font-size:14px;text-decoration:none;font-weight:600}
+  .empty{text-align:center;color:var(--ink-faint);padding:28px 8px}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--teal);
+        border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px;margin-right:8px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .sheet{position:fixed;inset:0;z-index:50;background:rgba(8,8,24,.55);display:flex;align-items:flex-end;justify-content:center}
+  .sheet[hidden]{display:none}
+  .sheet-card{background:var(--paper);width:100%;max-width:780px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;
+              padding:18px 16px calc(24px + env(safe-area-inset-bottom))}
+  footer{max-width:780px;margin:0 auto;padding:6px 16px 30px;color:var(--ink-faint);font-size:12.5px}
+  .check{display:flex;gap:10px;align-items:center;margin-top:12px}
+  .check input{width:auto;margin:0}
+  .urls{margin:6px 0 0;padding-left:18px;word-break:break-all;font-size:13px}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <a class="brand" href="#/">Peer<span>Lens</span></a>
+  <div class="status-pill" id="walletPill" role="button" tabindex="0">
+    <span class="dot" id="statusDot"></span><span class="label" id="statusText">Connect wallet</span>
+  </div>
+</div></header>
+
+<div class="sheet" id="walletSheet" hidden>
+  <div class="sheet-card">
+    <div class="row"><h2>Connect</h2><button class="ghost" id="sheetClose" style="width:auto;margin:0;padding:8px 14px">Close</button></div>
+    <h3 style="margin-top:16px">Browser wallet</h3>
+    <p class="hint">MetaMask or any injected wallet. Open this page inside the wallet's own browser if your normal browser has none.</p>
+    <button id="connInjected">Connect browser wallet</button>
+    <h3 style="margin-top:22px">Private key (Studio accounts)</h3>
+    <p class="hint">Paste the private key of a GenLayer Studio account to act as that account. It stays in this tab's memory only and is used only to sign your transactions. Use testnet keys only.</p>
+    <input id="pkInput" type="password" placeholder="0x... (64 hex characters)" autocapitalize="off" autocomplete="off" spellcheck="false">
+    <button class="secondary" id="connKey">Use this account</button>
+    <h3 style="margin-top:22px">Test session</h3>
+    <p class="hint">Generates a throwaway account for this tab. Good for reading and for trying the flow with a fresh address.</p>
+    <button class="ghost" id="connTest">Start test session</button>
+    <div class="out" id="connOut"></div>
+    <div id="connAddrBox" hidden>
+      <h3 style="margin-top:22px">Connected address</h3>
+      <p id="connAddr" style="word-break:break-all;user-select:all;font-family:monospace;font-size:13px;margin:8px 0"></p>
+      <button class="secondary" id="connCopy">Copy address</button>
+    </div>
+    <button class="ghost" id="connDisconnect" hidden>Disconnect</button>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <!-- ===== Explore ===== -->
+  <section class="route" id="route-home">
+    <div class="hero">
+      <h1>Paid code reviews, settled on <span style="color:var(--teal)">GitHub evidence</span>.</h1>
+      <p>A sponsor escrows the reward for a review of one pull request and the reviewer posts a bond. The contract reads the pull request's review list itself: who reviewed, when, in which state and how much they wrote. A review a maintainer dismisses never counts against the reviewer.</p>
+      <div class="stats">
+        <div class="stat"><b id="statTotal">-</b><span>review jobs</span></div>
+        <div class="stat"><b id="statActive">-</b><span>in progress</span></div>
+        <div class="stat"><b id="statSettled">-</b><span>settled</span></div>
+      </div>
+    </div>
+    <div class="row"><h2>Explore</h2><a href="#/create" style="font-weight:700;text-decoration:none">+ New review job</a></div>
+    <input id="filterInput" placeholder="Filter by ID, repository, login, address or status" style="margin:12px 0">
+    <div id="jobList"></div>
+    <div class="btnrow">
+      <button class="ghost" id="refreshBtn">Refresh</button>
+      <button class="ghost" id="moreBtn" hidden>Load more</button>
+    </div>
+  </section>
+
+  <!-- ===== Create ===== -->
+  <section class="route" id="route-create">
+    <h2>New review job</h2>
+    <p class="muted">You become the sponsor and the reward is escrowed now. The reviewer must post the bond to accept.</p>
+    <div class="card">
+      <label for="fRepo">Repository</label>
+      <input id="fRepo" placeholder="owner/name" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <div class="grid2">
+        <div><label for="fPr">Pull request number</label><input id="fPr" inputmode="numeric" placeholder="42"></div>
+        <div><label for="fMinChars">Minimum review length (characters)</label><input id="fMinChars" inputmode="numeric" value="200"></div>
+      </div>
+      <p class="hint">Recorded on-chain now. A delivery only counts if the reviewer submits a non-dismissed review on this pull request, inside the window, with at least this much text. Between 20 and 5000.</p>
+      <label for="fLogin">Reviewer GitHub login</label>
+      <input id="fLogin" placeholder="octodev" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label for="fWallet">Reviewer wallet address</label>
+      <input id="fWallet" placeholder="0x..." autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label for="fTerms">Job terms</label>
+      <textarea id="fTerms" placeholder="Security review of the new sorting code"></textarea>
+      <label for="fCriteria">Review criteria</label>
+      <textarea id="fCriteria" placeholder="Checks tie handling and edge cases, and asks for tests where missing"></textarea>
+      <div class="grid2">
+        <div><label for="fReward">Reward (GEN)</label><input id="fReward" inputmode="decimal" placeholder="1.0"></div>
+        <div><label for="fBondBps">Reviewer bond (% of reward)</label><input id="fBondBps" inputmode="decimal" value="20"></div>
+      </div>
+      <p class="hint">The bond is between 5% and 100% of the reward and is returned unless the work is judged not delivered.</p>
+      <label for="fPartial">Reviewer share on partial delivery (%)</label>
+      <input id="fPartial" inputmode="decimal" value="50">
+      <p class="hint">Applies when the review is real but only part of the criteria is met. The bond is returned in full. Between 0.01% and 99.99%.</p>
+      <label for="fDeadline">Deadline</label>
+      <input id="fDeadline" type="datetime-local">
+      <p class="hint">Between 1 hour and 90 days from now. Evidence host: api.github.com only.</p>
+      <button id="createBtn">Create job</button>
+      <div class="out" id="createOut"></div>
+    </div>
+  </section>
+
+  <!-- ===== Job detail ===== -->
+  <section class="route" id="route-job">
+    <a class="back" href="#/">&larr; All jobs</a>
+    <div id="jobView"></div>
+  </section>
+
+  <!-- ===== Jury ===== -->
+  <section class="route" id="route-jury">
+    <h2>Jurors</h2>
+    <p class="muted">Stake GEN to be eligible for appeal juries. Selection weight is capped, so a large stake cannot buy unlimited odds. Register before a job is accepted: later registrations are not eligible for that job.</p>
+    <div class="card">
+      <h3>Register or top up</h3>
+      <label for="jStake">Stake to add (GEN)</label>
+      <input id="jStake" inputmode="decimal" value="1.0">
+      <button id="jRegisterBtn">Register / add stake</button>
+      <label for="jUnstake">Unstake amount (GEN)</label>
+      <input id="jUnstake" inputmode="decimal" placeholder="0.5">
+      <button class="secondary" id="jUnstakeBtn">Unstake</button>
+      <div class="out" id="jOut"></div>
+    </div>
+    <div class="card">
+      <h3>Look up a juror</h3>
+      <label for="jAddr">Address</label>
+      <input id="jAddr" placeholder="0x... (blank = connected wallet)" autocapitalize="off" autocomplete="off" spellcheck="false">
+      <button class="secondary" id="jLookupBtn">Get juror record</button>
+      <div class="out" id="jLookupOut"></div>
+    </div>
+  </section>
+
+  <!-- ===== Withdraw ===== -->
+  <section class="route" id="route-withdraw">
+    <h2>Balance</h2>
+    <p class="muted">Payouts are credited here first. Withdraw sends your whole balance to your own wallet.</p>
+    <div class="card">
+      <div class="row"><span class="muted">Your pending balance</span><b id="myPending">-</b></div>
+      <button id="withdrawBtn">Withdraw my balance</button>
+      <button class="ghost" id="checkPendingBtn">Refresh balance</button>
+      <div class="out" id="wOut"></div>
+    </div>
+    <div class="card">
+      <h3>Check any address</h3>
+      <label for="wAddr">Address</label>
+      <input id="wAddr" placeholder="0x..." autocapitalize="off" autocomplete="off" spellcheck="false">
+      <button class="secondary" id="wLookupBtn">Check pending balance</button>
+      <div class="row" style="margin-top:14px"><span class="muted">Total held by contract</span><b id="contractBal">-</b></div>
+      <div class="out" id="wLookupOut"></div>
+    </div>
+    <div class="card">
+      <h3>Fund a Studio account (testnet only)</h3>
+      <p class="hint">GenLayer Studio is a simulator and can credit test GEN to any address. This asks the Studio RPC to do it. It is an experimental call: if the response shows an error, the Studio version may not support it.</p>
+      <label for="fundAddr">Address (blank = connected wallet)</label>
+      <input id="fundAddr" placeholder="0x..." autocapitalize="off" autocomplete="off" spellcheck="false">
+      <label for="fundAmt">Amount (whole GEN, 1 to 100)</label>
+      <input id="fundAmt" inputmode="numeric" value="10">
+      <button class="secondary" id="fundBtn">Request test GEN</button>
+      <div class="out" id="fundOut"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  PeerLens on GenLayer Studio &middot; contract <span class="mono" id="contractAddrText"></span><br>
+  No-build reference frontend (genlayer-js). See ARCHITECTURE.md for the trust model and known limitations.
+</footer>
+
+<nav class="tabs"><div class="wrap">
+  <a class="tab-link" data-tab="home" href="#/">
+    <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Explore</a>
+  <a class="tab-link" data-tab="create" href="#/create">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Create</a>
+  <a class="tab-link" data-tab="jury" href="#/jury">
+    <svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/></svg>Jury</a>
+  <a class="tab-link" data-tab="withdraw" href="#/withdraw">
+    <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg>Balance</a>
+</div></nav>
+
+<script type="module">
+import { createClient, createAccount } from "https://esm.sh/genlayer-js@latest";
+import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
+
+const DEFAULT_CONTRACT_ADDRESS = "0xa8671E2Dd98E25376DD503692685e525Dd2291B3";
+const OUTCOMES = ["REVIEW_DELIVERED", "PARTIALLY_DELIVERED", "NOT_DELIVERED", "UNDETERMINED"];
+const OUTCOME_LABEL = {
+  REVIEW_DELIVERED: "Delivered", PARTIALLY_DELIVERED: "Partially delivered",
+  NOT_DELIVERED: "Not delivered", UNDETERMINED: "Undetermined",
+};
+const OUTCOME_KIND = { REVIEW_DELIVERED: "good", PARTIALLY_DELIVERED: "warn", NOT_DELIVERED: "bad", UNDETERMINED: "neutral" };
+const LIST_LIMIT = 20;
+
+const $ = (id) => document.getElementById(id);
+
+/* ---------- contract address: ?contract=0x... , then saved value, then the default ---------- */
+function resolveContract() {
+  const ok = (v) => /^0x[0-9a-fA-F]{40}$/.test(String(v || ""));
+  try {
+    const q = new URLSearchParams(location.search).get("contract");
+    if (ok(q)) { try { localStorage.setItem("peerlens.contract", q); } catch (e) {} return q; }
+  } catch (e) {}
+  try { const s = localStorage.getItem("peerlens.contract"); if (ok(s)) return s; } catch (e) {}
+  return DEFAULT_CONTRACT_ADDRESS;
+}
+const CONTRACT_ADDRESS = resolveContract();
+$("contractAddrText").textContent = CONTRACT_ADDRESS.slice(0, 8) + "..." + CONTRACT_ADDRESS.slice(-6);
+
+/* ---------- tiny DOM helper: builds nodes with textContent only, so contract data is always text ---------- */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "text") el.textContent = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === undefined || kid === false) continue;
+    el.appendChild(typeof kid === "string" || typeof kid === "number" ? document.createTextNode(String(kid)) : kid);
+  }
+  return el;
+}
+const clear = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
+const short = (a) => (a ? a.slice(0, 6) + "..." + a.slice(-4) : "-");
+const same = (a, b) => !!a && !!b && String(a).toLowerCase() === String(b).toLowerCase();
+const fmtTime = (iso) => { try { return new Date(iso).toLocaleString(); } catch (e) { return String(iso); } };
+const isPast = (iso) => { try { return Date.now() > new Date(iso).getTime(); } catch (e) { return false; } };
+
+function showOut(el, text, kind) {
+  el.style.display = "block";
+  el.textContent = typeof text === "string" ? text : JSON.stringify(text, null, 2);
+  el.classList.remove("ok", "err");
+  if (kind) el.classList.add(kind);
+}
+
+/* ---------- GEN <-> wei, exact BigInt only ---------- */
+const WEI_PER_GEN = 1000000000000000000n;
+function genToWei(s) {
+  const t = String(s).trim();
+  if (!t) return null;
+  const p = t.split(".");
+  if (p.length > 2) return null;
+  const whole = p[0] || "0";
+  const frac = p[1] || "";
+  if (!/^\d+$/.test(whole) || (frac && !/^\d+$/.test(frac)) || frac.length > 18) return null;
+  try { return BigInt(whole) * WEI_PER_GEN + BigInt(frac.padEnd(18, "0") || "0"); } catch (e) { return null; }
+}
+function weiToGen(w) {
+  let wei;
+  try { wei = BigInt(w); } catch (e) { return String(w); }
+  const frac = (wei % WEI_PER_GEN).toString().padStart(18, "0").replace(/0+$/, "");
+  return frac ? `${wei / WEI_PER_GEN}.${frac}` : (wei / WEI_PER_GEN).toString();
+}
+/* percent text ("20", "12.5") -> basis points, or null */
+function pctToBps(s) {
+  const t = String(s).trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
+  const [w, f = ""] = t.split(".");
+  return Number(w) * 100 + Number(f.padEnd(2, "0"));
+}
+
+/* ---------- wallet ---------- */
+let client = null;
+let account = null;
+let usingInjected = false;
+function hexChainId() { return "0x" + Number(studionet.id).toString(16); }
+async function ensureChain() {
+  if (!usingInjected || !window.ethereum) return;
+  const cur = await window.ethereum.request({ method: "eth_chainId" });
+  if (String(cur).toLowerCase() === hexChainId().toLowerCase()) return;
+  try {
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: hexChainId() }] });
+  } catch (e) {
+    await window.ethereum.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: hexChainId(),
+        chainName: studionet.name || "GenLayer Studio",
+        nativeCurrency: studionet.nativeCurrency || { name: "GEN", symbol: "GEN", decimals: 18 },
+        rpcUrls: studionet.rpcUrls?.default?.http || [],
+      }],
+    });
+  }
+}
+const readClient = createClient({ chain: studionet });
+
+function setStatus(on, label) {
+  $("statusDot").classList.toggle("on", on);
+  $("walletPill").classList.toggle("connected", on);
+  $("statusText").textContent = label;
+}
+const sheet = $("walletSheet");
+function openSheet() {
+  $("connDisconnect").hidden = !client;
+  $("connAddrBox").hidden = !account;
+  $("connAddr").textContent = account || "";
+  $("connOut").style.display = "none";
+  sheet.hidden = false;
+}
+function closeSheet() { sheet.hidden = true; $("pkInput").value = ""; }
+function connected(label) { setStatus(true, label); closeSheet(); route(); }
+
+async function connectInjected() {
+  const out = $("connOut");
+  if (!window.ethereum) {
+    showOut(out, "No browser wallet found in this browser. Open this page inside your wallet app's browser, or use a private key below.", "err");
+    return;
+  }
+  try {
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    account = accounts[0];
+    client = createClient({ chain: studionet, account });
+    usingInjected = true;
+    try { await ensureChain(); } catch (e) { showOut(out, "Connected, but could not switch the wallet to the GenLayer Studio network: " + (e?.message || String(e)), "err"); }
+    connected(short(account));
+  } catch (e) { showOut(out, "Connection failed: " + (e?.message || String(e)), "err"); }
+}
+function connectKey() {
+  const out = $("connOut");
+  let pk = $("pkInput").value.trim();
+  if (/^[0-9a-fA-F]{64}$/.test(pk)) pk = "0x" + pk;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(pk)) return showOut(out, "That is not a valid private key: expected 64 hex characters, optionally starting with 0x.", "err");
+  try {
+    const acct = createAccount(pk);
+    account = acct.address;
+    usingInjected = false;
+    client = createClient({ chain: studionet, account: acct });
+    connected(short(account));
+  } catch (e) { showOut(out, "Could not use this key: " + (e?.message || String(e)), "err"); }
+}
+const TEST_KEY_SLOT = "peerlens.testsession";
+function readTestKey() { try { const v = sessionStorage.getItem(TEST_KEY_SLOT); return /^0x[0-9a-f]{64}$/.test(v || "") ? v : ""; } catch (e) { return ""; } }
+function writeTestKey(v) { try { if (v) sessionStorage.setItem(TEST_KEY_SLOT, v); else sessionStorage.removeItem(TEST_KEY_SLOT); } catch (e) {} }
+function randomKey() {
+  const b = new Uint8Array(32);
+  crypto.getRandomValues(b);
+  return "0x" + Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+function startTestSession(silent) {
+  let pk = readTestKey();
+  const fresh = !pk;
+  if (fresh) pk = randomKey();
+  const acct = createAccount(pk);
+  if (fresh) writeTestKey(pk);
+  account = acct.address;
+  usingInjected = false;
+  client = createClient({ chain: studionet, account: acct });
+  setStatus(true, "Test - " + short(account));
+  if (!silent) { closeSheet(); route(); }
+}
+function disconnect() {
+  writeTestKey("");
+  client = null; account = null;
+  setStatus(false, "Connect wallet");
+  closeSheet(); route();
+}
+$("walletPill").addEventListener("click", openSheet);
+$("sheetClose").addEventListener("click", closeSheet);
+sheet.addEventListener("click", (e) => { if (e.target === sheet) closeSheet(); });
+$("connInjected").addEventListener("click", connectInjected);
+$("connKey").addEventListener("click", connectKey);
+$("connTest").addEventListener("click", () => startTestSession(false));
+$("connDisconnect").addEventListener("click", disconnect);
+$("connCopy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(String(account || "")); $("connCopy").textContent = "Copied"; } catch (e) { $("connCopy").textContent = "Select the address above and copy it"; }
+  setTimeout(() => { $("connCopy").textContent = "Copy address"; }, 2000);
+});
+
+function needClient(out) {
+  if (client) return true;
+  showOut(out, "Tap the wallet button at the top to connect first.", "err");
+  openSheet();
+  return false;
+}
+
+/* ---------- contract calls ---------- */
+function unwrap(receipt) {
+  let v = receipt?.consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
+  if (v === undefined) return null;
+  for (let i = 0; i < 3; i++) {
+    if (typeof v !== "string") break;
+    const t = v.trim();
+    if (!(t.startsWith("{") || t.startsWith("[") || t.startsWith('"'))) break;
+    try { v = JSON.parse(v); } catch (e) { break; }
+  }
+  return v;
+}
+async function read(functionName, args = []) {
+  return readClient.readContract({ address: CONTRACT_ADDRESS, functionName, args });
+}
+async function readJson(functionName, args = []) {
+  const raw = await read(functionName, args);
+  return typeof raw === "string" ? JSON.parse(raw) : raw;
+}
+async function write(out, label, functionName, args, valueWei) {
+  if (!needClient(out)) return null;
+  try {
+    showOut(out, `Sending ${label}... check your wallet for a confirmation request.`);
+    await ensureChain();
+    const slow = setTimeout(() => showOut(out,
+      `Still waiting for the wallet to answer ${label}.\nOpen your wallet app and look for a pending request. If none appears, the wallet is probably on the wrong network or did not receive the request.`), 20000);
+    let hash;
+    try { hash = await client.writeContract({ address: CONTRACT_ADDRESS, functionName, args, value: valueWei ?? 0n }); }
+    finally { clearTimeout(slow); }
+    showOut(out, `Sent ${short(hash)}. Waiting for finalization...`);
+    const receipt = await client.waitForTransactionReceipt({ hash, status: "FINALIZED", interval: 4000, retries: 45 });
+    const result = unwrap(receipt);
+    const failed = receipt?.consensus_data?.leader_receipt?.[0]?.execution_result === "ERROR";
+    if (failed) { showOut(out, "The contract rejected this call. Check the details and try again.\n\nTx: " + hash, "err"); return null; }
+    if (result && typeof result === "object" && result.rejected) {
+      showOut(out, "Rejected: " + result.rejected + "\n\nThe GEN you sent (" + weiToGen(result.refunded_wei) + " GEN) was credited to your Balance tab; withdraw it there.\n\nTx: " + hash, "err");
+      return null;
+    }
+    showOut(out, "Done.\n\nTx: " + hash, "ok");
+    return result === null ? true : result;
+  } catch (e) {
+    showOut(out, "Error: " + (e?.message || String(e)), "err");
+    return null;
+  }
+}
+
+/* ---------- GitHub link helpers ---------- */
+/* The one evidence record a job accepts: the review list of its anchored pull request, built from the job's own anchors. */
+function reviewsEvidenceUrl(b) {
+  return `https://api.github.com/repos/${b.repo}/pulls/${b.pr_number}/reviews?per_page=100`;
+}
+function prPageUrl(b) { return `https://github.com/${b.repo}/pull/${b.pr_number}`; }
+
+/* ---------- status helpers ---------- */
+const STEPS = [
+  ["posted", "Posted"], ["active", "Accepted"], ["evidence_locked", "Evidence"],
+  ["ruled", "Ruled"], ["appeal", "Appeal"], ["settled", "Settled"],
+];
+function stepIndex(status) {
+  if (status === "appeal_filed" || status === "jury_voting") return 4;
+  const i = STEPS.findIndex((s) => s[0] === status);
+  return i < 0 ? 0 : i;
+}
+function outcomeOf(b) { return b.final_outcome || b.tier1_outcome || null; }
+function statusPill(b) {
+  if (b.status === "cancelled") return h("span", { class: "pill neutral", text: "Cancelled" });
+  const out = outcomeOf(b);
+  if (b.status === "settled" && out) return h("span", { class: "pill " + (OUTCOME_KIND[out] || "neutral"), text: OUTCOME_LABEL[out] || out });
+  const label = {
+    posted: "Awaiting reviewer", active: "Collecting evidence", evidence_locked: "Evidence locked",
+    ruled: "Ruled - appeal open", appeal_filed: "Appeal filed", jury_voting: "Jury voting",
+  }[b.status] || b.status;
+  return h("span", { class: "pill open", text: label });
+}
+
+/* ---------- Explore ---------- */
+let listRows = [];
+let listTotal = 0;
+async function loadStats() {
+  try {
+    const s = await readJson("get_stats");
+    $("statTotal").textContent = s.total; $("statActive").textContent = s.active; $("statSettled").textContent = s.settled;
+  } catch (e) { /* stats are decorative */ }
+}
+function renderList() {
+  const box = clear($("jobList"));
+  const f = $("filterInput").value.trim().toLowerCase();
+  const rows = listRows.filter((r) => !f || [r.job_id, r.repo, r.reviewer_login, r.party_a, r.party_b, r.status, r.job_terms, outcomeOf(r) || ""]
+    .join(" ").toLowerCase().includes(f));
+  if (!rows.length) { box.appendChild(h("div", { class: "empty", text: listRows.length ? "No job matches this filter." : "No jobs yet. Create the first one." })); }
+  for (const r of rows) {
+    box.appendChild(h("a", { class: "card link", href: "#/job/" + encodeURIComponent(r.job_id) },
+      h("div", { class: "row" }, h("b", { text: `${r.repo} PR #${r.pr_number}` }), statusPill(r)),
+      h("div", { class: "terms", text: r.job_terms }),
+      h("div", { class: "faint", text: `${r.job_id} - reward ${weiToGen(r.reward_amount)} GEN - ${r.reviewer_login} - due ${fmtTime(r.deadline)}` })));
+  }
+  $("moreBtn").hidden = listRows.length >= listTotal;
+}
+async function loadList(append) {
+  const box = $("jobList");
+  if (/^0x0{40}$/.test(CONTRACT_ADDRESS)) {
+    clear(box).appendChild(h("div", { class: "empty", text: "No contract is configured yet. Open this page as index.html?contract=0x... with your deployed address." }));
+    return;
+  }
+  if (!append) { listRows = []; clear(box).appendChild(h("div", { class: "empty" }, h("span", { class: "spin" }), "Loading jobs...")); }
+  loadStats();
+  try {
+    const page = await readJson("list_jobs", [listRows.length, LIST_LIMIT]);
+    listTotal = page.total;
+    const seen = new Set(listRows.map((r) => r.job_id));
+    listRows = listRows.concat(page.jobs.filter((r) => !seen.has(r.job_id)));
+    renderList();
+  } catch (e) {
+    clear(box).appendChild(h("div", { class: "empty", text: "Could not load jobs: " + (e?.message || String(e)) }));
+  }
+}
+$("filterInput").addEventListener("input", renderList);
+$("refreshBtn").addEventListener("click", () => loadList(false));
+$("moreBtn").addEventListener("click", () => loadList(true));
+
+/* ---------- Create ---------- */
+$("createBtn").addEventListener("click", async () => {
+  const out = $("createOut");
+  const repo = $("fRepo").value.trim(), login = $("fLogin").value.trim();
+  const wallet = $("fWallet").value.trim(), pr = parseInt($("fPr").value, 10), minChars = parseInt($("fMinChars").value, 10);
+  const terms = $("fTerms").value.trim(), criteria = $("fCriteria").value.trim();
+  const reward = genToWei($("fReward").value), bondBps = pctToBps($("fBondBps").value), partial = pctToBps($("fPartial").value);
+  const deadline = $("fDeadline").value ? new Date($("fDeadline").value) : null;
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) return showOut(out, "Repository must look like owner/name.", "err");
+  if (!Number.isInteger(pr) || pr < 1) return showOut(out, "Pull request number must be a positive whole number.", "err");
+  if (!Number.isInteger(minChars) || minChars < 20 || minChars > 5000) return showOut(out, "Minimum review length must be between 20 and 5000.", "err");
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(login)) return showOut(out, "Enter the reviewer's GitHub login.", "err");
+  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) return showOut(out, "Reviewer wallet must be a 0x address.", "err");
+  if (!terms || !criteria) return showOut(out, "Fill in the terms and the review criteria.", "err");
+  if (reward === null || reward <= 0n) return showOut(out, "Enter a reward greater than zero.", "err");
+  if (bondBps === null || bondBps < 500 || bondBps > 10000) return showOut(out, "Bond must be between 5 and 100 percent.", "err");
+  if (partial === null || partial < 1 || partial > 9999) return showOut(out, "Partial share must be between 0.01 and 99.99 percent.", "err");
+  if (!deadline || isNaN(deadline.getTime())) return showOut(out, "Choose a deadline.", "err");
+  const id = await write(out, "create job", "create_job",
+    [wallet, repo, pr, login, minChars, terms, criteria, deadline.toISOString(), bondBps, partial], reward);
+  if (typeof id === "string" && /^job_\d+$/.test(id)) { setTimeout(() => { location.hash = "#/job/" + id; }, 1200); }
+  else if (id) { setTimeout(() => { location.hash = "#/"; }, 1200); }
+});
+
+/* ---------- Job detail ---------- */
+function kv(rows) {
+  const dl = h("dl", { class: "kv" });
+  for (const [k, v] of rows) { dl.appendChild(h("dt", { text: k })); dl.appendChild(h("dd", {}, v)); }
+  return dl;
+}
+function actionBox(title, hint, ...controls) {
+  const out = h("div", { class: "out" });
+  return { out, node: h("div", { class: "card" }, h("h3", { text: title }), hint ? h("p", { class: "hint", text: hint }) : null, ...controls.map((c) => (typeof c === "function" ? c(out) : c)), out) };
+}
+function actionButton(label, kind, run) {
+  return (out) => h("button", { class: kind || "", text: label, onclick: () => run(out) });
+}
+function checkRow(ok, text) {
+  return h("div", { class: "chk " + (ok === true ? "ok" : ok === false ? "no" : "na") }, h("i", { text: ok === true ? "+" : ok === false ? "x" : "-" }), h("span", { text }));
+}
+function reportCard(r) {
+  const verdictKind = { delivered: "good", ambiguous: "warn", rejected: "warn", failed: "bad", unrelated: "neutral" }[r.verdict] || "neutral";
+  return h("div", { class: "card" },
+    h("div", { class: "row" }, h("b", { text: "Review " + r.id }), h("span", { class: "pill " + verdictKind, text: r.verdict })),
+    h("div", { class: "checks" },
+      checkRow(r.state !== "PENDING" && r.state !== "", "Submitted (state " + (r.state || "unknown") + ")"),
+      checkRow(r.in_window, "Submitted inside the job window"),
+      checkRow(r.state === "DISMISSED" ? false : true, "Not dismissed"),
+      checkRow(r.long_enough, "Long enough (" + r.body_len + " characters)")));
+}
+function assessmentSection(b) {
+  const a = b.tier1_assessment;
+  if (!a) return null;
+  const kids = [h("h3", { text: "What the contract checked" })];
+  const reports = a.reports || [];
+  if (!reports.length) kids.push(h("p", { class: "muted", text: a.absence_proven ? "The review list is complete and holds no review by the reviewer." : "No review by the reviewer could be read from the locked evidence." }));
+  const wrap = h("div", {}, ...kids);
+  for (const r of reports) wrap.appendChild(reportCard(r));
+  if (a.absence_proven && reports.length) wrap.appendChild(h("div", { class: "card" }, h("b", { text: "No review by the reviewer counts inside the window." })));
+  return wrap;
+}
+
+async function renderJob(id) {
+  const view = clear($("jobView"));
+  view.appendChild(h("div", { class: "empty" }, h("span", { class: "spin" }), "Loading..."));
+  let b;
+  try { b = await readJson("get_job", [id]); }
+  catch (e) { clear(view).appendChild(h("div", { class: "empty", text: "Could not load this job: " + (e?.message || String(e)) })); return; }
+  clear(view);
+  const me = account;
+  const isA = same(me, b.party_a), isB = same(me, b.party_b), isParty = isA || isB;
+  let juryOptions = null;
+  if (b.tier1_resolved_at) { try { juryOptions = await readJson("get_jury_options", [id]); } catch (e) { juryOptions = null; } }
+  const outcome = outcomeOf(b);
+
+  const idx = stepIndex(b.status);
+  view.appendChild(h("div", { class: "row" }, h("h2", { text: `${b.repo} PR #${b.pr_number}` }), statusPill(b)));
+  view.appendChild(h("p", { class: "terms", text: b.job_terms }));
+  if (b.status !== "cancelled") {
+    view.appendChild(h("div", { class: "steps" }, STEPS.map((s, i) => h("span", { class: "step " + (i < idx || b.status === "settled" ? "done" : i === idx ? "now" : ""), text: s[1] }))));
+  }
+
+  if (outcome && (b.status === "ruled" || b.status === "settled" || b.status === "appeal_filed" || b.status === "jury_voting")) {
+    const final = b.status === "settled";
+    view.appendChild(h("div", { class: "verdict " + (OUTCOME_KIND[outcome] || "neutral") },
+      h("div", { class: "faint", text: final ? "Final outcome" : "Automated outcome (appealable)" }),
+      h("div", { class: "big", text: OUTCOME_LABEL[outcome] || outcome }),
+      b.tier1_reasoning ? h("p", { class: "muted", style: "margin-top:8px", text: b.tier1_reasoning }) : null));
+  }
+
+  view.appendChild(h("div", { class: "card" }, kv([
+    ["Sponsor", h("span", { class: "mono", text: b.party_a })],
+    ["Reviewer wallet", h("span", { class: "mono", text: b.party_b })],
+    ["Reviewer login", b.reviewer_login],
+    ["Pull request", h("a", { href: prPageUrl(b), target: "_blank", rel: "noopener", text: "#" + b.pr_number + " on GitHub" })],
+    ["Minimum review", b.min_review_chars + " characters"],
+    ["Reward", weiToGen(b.reward_amount) + " GEN"],
+    ["Reviewer bond", `${weiToGen(b.bond_amount)} GEN (${b.bond_bps / 100}% of reward)`],
+    ["Partial split", `${b.partial_reviewer_bps / 100}% of reward to reviewer`],
+    ["Deadline", fmtTime(b.deadline)],
+    ["Evidence host", (b.allowed_evidence_domains || []).join(", ")],
+    ["Criteria", b.review_criteria],
+    b.claimed_review_key ? ["Claimed review", b.claimed_review_key] : null,
+  ].filter(Boolean))));
+
+  const subs = b.evidence_submissions || {};
+  const subKeys = Object.keys(subs);
+  if (subKeys.length) {
+    view.appendChild(h("div", { class: "card" }, h("h3", { text: "Submitted evidence" }),
+      subKeys.map((k) => h("div", {}, h("div", { class: "faint", text: (same(k, b.party_a) ? "Sponsor " : same(k, b.party_b) ? "Reviewer " : "") + short(k) }),
+        h("ul", { class: "urls" }, subs[k].map((u) => h("li", { text: u })))))));
+  }
+  const assessment = assessmentSection(b);
+  if (assessment) view.appendChild(assessment);
+
+  /* ----- contextual actions ----- */
+  const act = (title, hint, ...c) => { const a = actionBox(title, hint, ...c); view.appendChild(a.node); return a; };
+  const refresh = () => renderJob(id);
+
+  if (b.status === "posted") {
+    if (isB) act("Accept this job", `Post the reviewer bond of ${weiToGen(b.bond_amount)} GEN. Read the anchors above first: they cannot change.`,
+      actionButton(`Accept and post ${weiToGen(b.bond_amount)} GEN`, "", async (out) => { if (await write(out, "accept", "accept_job", [id], BigInt(b.bond_amount))) refresh(); }));
+    if (isA) act("Cancel", "The reviewer has not accepted yet. Cancelling credits your reward back to your balance.",
+      actionButton("Cancel job", "danger", async (out) => { if (await write(out, "cancel", "cancel_job", [id])) refresh(); }));
+  }
+
+  if (b.status === "active" && isParty) {
+    const url = reviewsEvidenceUrl(b);
+    act("Submit evidence", "The only accepted record is the review list of the anchored pull request, shown below. If the other side does not answer, evidence locks after the grace period.",
+      h("div", { class: "faint mono", style: "word-break:break-all", text: url }),
+      actionButton("Submit the review list", "", async (out) => {
+        if (await write(out, "evidence", "submit_evidence", [id, [url]])) refresh();
+      }));
+  }
+  if (b.status === "active") {
+    if (b.evidence_lock_at && subKeys.length && isPast(b.evidence_lock_at)) act("Lock evidence", "The grace period has passed. Anyone can lock the submitted evidence.",
+      actionButton("Lock evidence", "secondary", async (out) => { if (await write(out, "lock", "lock_evidence", [id])) refresh(); }));
+    if (isPast(b.evidence_deadline)) act("Evidence window closed", "Anyone can move the job on, or refund both sides if nobody submitted evidence.",
+      actionButton("Close evidence window", "secondary", async (out) => { if (await write(out, "expire", "expire_no_evidence", [id])) refresh(); }));
+  }
+
+  if (b.status === "evidence_locked") {
+    const early = !isPast(b.deadline);
+    act("Adjudicate", early
+      ? "Before the deadline only a proven delivery can be recorded; any other result is rejected and you can try again after the deadline."
+      : "Fetches the locked GitHub records, runs the checks in code and asks the model only where code cannot decide. If the review list cannot be read, or an empty list is less than one hour after the deadline, the call is rejected and nothing is recorded: try again later.",
+      actionButton("Run adjudication", "", async (out) => { if (await write(out, "adjudication", "adjudicate", [id])) refresh(); }));
+    act("Recovery", "If nobody can rule within the timeout, anyone can refund both sides.",
+      actionButton("Refund both sides (after timeout)", "ghost", async (out) => { if (await write(out, "expire", "expire_unruled", [id])) refresh(); }));
+  }
+
+  if (b.status === "ruled") {
+    const open = !isPast(b.appeal_deadline);
+    const nothingToAppeal = Array.isArray(juryOptions) && juryOptions.length === 1 && juryOptions[0] === b.tier1_outcome;
+    if (open && isParty && nothingToAppeal) view.appendChild(h("p", { class: "faint", text: "Nothing to appeal: the evidence permits no other outcome." }));
+    if (open && isParty && !nothingToAppeal) act("Appeal to a jury", "Bond: 20% of the reward. A jury may choose: " + (juryOptions || OUTCOMES).map((o) => OUTCOME_LABEL[o] || o).join(", ") + ". Half the bond is the jury fee; the other half returns to you if the outcome changes, or goes to the other party if it stands. Needs at least 5 registered jurors.",
+      actionButton("File appeal", "danger", async (out) => {
+        let bond = BigInt(b.reward_amount) * 2000n / 10000n;
+        if (bond > 10n ** 30n) bond = 10n ** 30n;
+        if (bond < 10n ** 15n) bond = 10n ** 15n;
+        if (await write(out, "appeal", "file_appeal", [id], bond)) refresh();
+      }));
+    if (!open) act("Settle", "The appeal window has closed with no appeal. Anyone can settle on the automated outcome.",
+      actionButton("Settle", "", async (out) => { if (await write(out, "settle", "settle_unappealed", [id])) refresh(); }));
+    else view.appendChild(h("p", { class: "faint", text: "Appeal window closes " + fmtTime(b.appeal_deadline) + "." }));
+  }
+
+  if (b.status === "appeal_filed") {
+    view.appendChild(h("div", { class: "card" }, h("h3", { text: "Appeal filed" }), kv([
+      ["Appellant", h("span", { class: "mono", text: b.appeal.appellant })],
+      ["Bond", weiToGen(b.appeal.bond_amount) + " GEN"],
+      ["Pool size", String((b.appeal.eligible_pool || []).length)],
+    ])));
+    act("Draw the jury", "Available once the appeal window has closed, using the public drand round fixed at appeal time.",
+      actionButton("Draw jury", "", async (out) => { if (await write(out, "draw", "draw_jury", [id])) refresh(); }));
+    act("Recovery", "If the draw never happens within the timeout, anyone can close the appeal with the original outcome.",
+      actionButton("Recover stuck appeal", "ghost", async (out) => { if (await write(out, "recovery", "recover_stuck_appeal", [id])) refresh(); }));
+  }
+
+  if (b.status === "jury_voting") view.appendChild(juryPanel(b, id, act, refresh, juryOptions));
+
+  if (b.status === "settled" || b.status === "cancelled") {
+    view.appendChild(h("div", { class: "card" }, kv([
+      ["Reviewer receives", weiToGen(b.reviewer_payout || "0") + " GEN"],
+      ["Sponsor receives", weiToGen(b.sponsor_payout || "0") + " GEN"],
+    ])));
+    view.appendChild(h("a", { href: "#/withdraw", text: "Go to Balance to withdraw" }));
+  }
+}
+
+/* ---------- jury voting ---------- */
+function savedKey(id) { return "peerlens.vote." + id + "." + String(account || "").toLowerCase(); }
+function saveVote(id, vote, salt) { try { localStorage.setItem(savedKey(id), JSON.stringify({ vote, salt })); } catch (e) {} }
+function loadVote(id) { try { return JSON.parse(localStorage.getItem(savedKey(id)) || "null"); } catch (e) { return null; } }
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+function juryPanel(b, id, act, refresh, options) {
+  const j = b.jury;
+  const wrap = h("div", {});
+  const me = String(account || "").toLowerCase();
+  const selected = (j.selected_jurors || []).map((x) => x.toLowerCase());
+  const mine = !!me && selected.includes(me);
+  const committed = Object.keys(j.commits || {}).length, revealed = Object.keys(j.reveals || {}).length;
+  wrap.appendChild(h("div", { class: "card" }, h("h3", { text: "Jury" }), kv([
+    ["Jurors", String(selected.length)],
+    ["Committed", String(committed)],
+    ["Revealed", String(revealed)],
+    ["Commit until", fmtTime(j.commit_deadline)],
+    ["Reveal until", fmtTime(j.reveal_deadline)],
+  ])));
+  const commitOpen = !isPast(j.commit_deadline), revealOpen = !commitOpen && !isPast(j.reveal_deadline);
+  if (mine && commitOpen && !j.commits[me]) {
+    const choices = Array.isArray(options) && options.length ? options : OUTCOMES;
+    const sel = h("select", {}, choices.map((o) => h("option", { value: o, text: OUTCOME_LABEL[o] })));
+    const a = act("Cast your vote (sealed)", "Only outcomes the frozen evidence permits are listed; any other majority would not stand. Your vote and a random salt are hashed together with your address and this job. Keep this browser: the salt is saved here to reveal later.",
+      sel, actionButton("Commit vote", "", async (out) => {
+        if (!needClient(out)) return;
+        const salt = crypto.getRandomValues(new Uint32Array(4)).join("-");
+        const hash = await sha256Hex(`${sel.value}:${salt}:${me}:${id}`);
+        saveVote(id, sel.value, salt);
+        if (await write(out, "commit", "commit_vote", [id, hash])) refresh();
+      }));
+  } else if (mine && revealOpen && j.commits[me] && !j.reveals[me]) {
+    const saved = loadVote(id);
+    act("Reveal your vote", saved ? `Saved vote: ${OUTCOME_LABEL[saved.vote] || saved.vote}.` : "No saved vote found in this browser.",
+      actionButton("Reveal vote", "", async (out) => {
+        if (!saved) return showOut(out, "No saved vote for this account in this browser.", "err");
+        if (await write(out, "reveal", "reveal_vote", [id, saved.vote, saved.salt])) refresh();
+      }));
+  } else if (!mine && account) {
+    wrap.appendChild(h("p", { class: "faint", text: "You were not selected for this jury." }));
+  }
+  if (!commitOpen && !revealOpen) {
+    act("Settle the jury", "The reveal window has closed. Anyone can settle. A majority only stands if validators derive the same outcome from the frozen GitHub evidence.",
+      actionButton("Settle jury", "", async (out) => { if (await write(out, "jury settlement", "settle_jury", [id])) refresh(); }));
+    act("Recovery", "If settlement is stuck past the timeout, anyone can close the appeal with the original outcome.",
+      actionButton("Recover stuck appeal", "ghost", async (out) => { if (await write(out, "recovery", "recover_stuck_appeal", [id])) refresh(); }));
+  }
+  const replay = h("div", { class: "out" });
+  wrap.appendChild(h("div", { class: "card" }, h("h3", { text: "Audit the draw" }),
+    h("p", { class: "hint", text: "Replays the weighted draw from the recorded pool and beacon." }),
+    h("button", { class: "ghost", text: "Verify jury selection", onclick: async () => {
+      try { const r = await readJson("verify_jury_selection", [id]); showOut(replay, r.match ? "Selection verified: the recorded jury matches the replay." : "MISMATCH between the recorded jury and the replay.", r.match ? "ok" : "err"); }
+      catch (e) { showOut(replay, "Error: " + (e?.message || String(e)), "err"); }
+    } }), replay));
+  return wrap;
+}
+
+/* ---------- Jury page ---------- */
+$("jRegisterBtn").addEventListener("click", async () => {
+  const out = $("jOut"); const v = genToWei($("jStake").value);
+  if (v === null || v <= 0n) return showOut(out, "Enter a stake greater than zero.", "err");
+  await write(out, "register", "register_juror", [], v);
+});
+$("jUnstakeBtn").addEventListener("click", async () => {
+  const out = $("jOut"); const v = genToWei($("jUnstake").value);
+  if (v === null || v <= 0n) return showOut(out, "Enter an amount greater than zero.", "err");
+  await write(out, "unstake", "unstake_juror", [v.toString()]);
+});
+$("jLookupBtn").addEventListener("click", async () => {
+  const out = $("jLookupOut");
+  const addr = $("jAddr").value.trim() || account;
+  if (!addr) return showOut(out, "Enter an address or connect a wallet.", "err");
+  try { const r = await readJson("get_juror", [addr]); r.stake_gen = weiToGen(r.stake); showOut(out, r, "ok"); }
+  catch (e) { showOut(out, "Error: " + (e?.message || String(e)), "err"); }
+});
+
+/* ---------- Balance ---------- */
+async function refreshPending() {
+  if (!account) { $("myPending").textContent = "connect a wallet"; return; }
+  try { $("myPending").textContent = weiToGen(await read("get_pending_withdrawal", [account])) + " GEN"; }
+  catch (e) { $("myPending").textContent = "unavailable"; }
+}
+async function refreshContractBalance() {
+  try { $("contractBal").textContent = weiToGen(await read("get_contract_balance")) + " GEN"; }
+  catch (e) { $("contractBal").textContent = "unavailable"; }
+}
+$("checkPendingBtn").addEventListener("click", refreshPending);
+$("withdrawBtn").addEventListener("click", async () => {
+  if (await write($("wOut"), "withdraw", "withdraw", [])) refreshPending();
+});
+$("wLookupBtn").addEventListener("click", async () => {
+  const out = $("wLookupOut"); const addr = $("wAddr").value.trim();
+  if (!addr) return showOut(out, "Enter an address.", "err");
+  try { const raw = await read("get_pending_withdrawal", [addr]); showOut(out, `${weiToGen(raw)} GEN (${raw} wei)`, "ok"); }
+  catch (e) { showOut(out, "Error: " + (e?.message || String(e)), "err"); }
+});
+
+/* ---------- test funding (Studio simulator) ---------- */
+$("fundBtn").addEventListener("click", async () => {
+  const out = $("fundOut");
+  const addr = $("fundAddr").value.trim() || account;
+  const gen = parseInt($("fundAmt").value, 10);
+  if (!addr || !/^0x[0-9a-fA-F]{40}$/.test(addr)) return showOut(out, "Enter a valid 0x address or connect a wallet.", "err");
+  if (!Number.isInteger(gen) || gen < 1 || gen > 100) return showOut(out, "Amount must be a whole number from 1 to 100.", "err");
+  const url = studionet.rpcUrls?.default?.http?.[0];
+  if (!url) return showOut(out, "No RPC URL available for this network.", "err");
+  try {
+    showOut(out, "Requesting...");
+    const amountWei = Number(BigInt(gen) * WEI_PER_GEN);
+    const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "sim_fundAccount", params: [addr, amountWei] }) });
+    const body = await res.json();
+    if (body.error) return showOut(out, "The Studio RPC refused: " + JSON.stringify(body.error), "err");
+    showOut(out, "Request accepted. Check the address balance in a few seconds.\n" + JSON.stringify(body.result ?? body), "ok");
+  } catch (e) { showOut(out, "Request failed: " + (e?.message || String(e)), "err"); }
+});
+
+/* ---------- router ---------- */
+function route() {
+  const hash = location.hash || "#/";
+  const m = hash.match(/^#\/job\/(.+)$/);
+  let name = "home";
+  if (m) name = "job";
+  else if (hash.startsWith("#/create")) name = "create";
+  else if (hash.startsWith("#/jury")) name = "jury";
+  else if (hash.startsWith("#/withdraw")) name = "withdraw";
+  document.querySelectorAll(".route").forEach((r) => r.classList.toggle("active", r.id === "route-" + name));
+  document.querySelectorAll(".tab-link").forEach((a) => a.classList.toggle("active", a.dataset.tab === (name === "job" ? "home" : name)));
+  if (name === "home") loadList(false);
+  if (name === "job") renderJob(decodeURIComponent(m[1]));
+  if (name === "withdraw") { refreshPending(); refreshContractBalance(); }
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+if (readTestKey()) { try { startTestSession(true); } catch (e) { writeTestKey(""); } }
+route();
+</script>
+</body>
+</html>

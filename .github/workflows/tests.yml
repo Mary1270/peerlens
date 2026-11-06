@@ -1,0 +1,30 @@
+name: Offline test suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Deploy file is up to date
+        run: python3 tools/make_deploy.py --check
+
+      - name: Run offline test suite against contract.py
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Run offline test suite against contract_deploy.py
+        run: python3 -m unittest discover -s tests -v
+        env:
+          RB_CONTRACT: ${{ github.workspace }}/contract_deploy.py
